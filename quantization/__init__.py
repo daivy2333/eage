@@ -1,5 +1,6 @@
 """量化模块"""
 from .ptq import (
+    QuantWrapper,
     PostTrainingQuantizer,
     DynamicQuantizer,
     QuantizationAwareTrainer,
@@ -9,6 +10,7 @@ from .ptq import (
 )
 
 __all__ = [
+    'QuantWrapper',
     'PostTrainingQuantizer',
     'DynamicQuantizer',
     'QuantizationAwareTrainer',

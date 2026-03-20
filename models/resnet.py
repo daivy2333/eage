@@ -45,6 +45,7 @@ class BasicBlock(nn.Module):
             kernel_size=3, stride=stride, padding=1, bias=False
         )
         self.bn1 = norm_layer(out_channels)
+        self.relu1 = nn.ReLU(inplace=True)
         
         # 第二个卷积层
         self.conv2 = nn.Conv2d(
@@ -52,6 +53,7 @@ class BasicBlock(nn.Module):
             kernel_size=3, stride=1, padding=1, bias=False
         )
         self.bn2 = norm_layer(out_channels)
+        self.relu2 = nn.ReLU(inplace=True)
         
         # 下采样
         self.downsample = downsample
@@ -66,7 +68,7 @@ class BasicBlock(nn.Module):
         # 第一个卷积块
         out = self.conv1(x)
         out = self.bn1(out)
-        out = F.relu(out, inplace=True)
+        out = self.relu1(out)
         
         # Dropout
         if self.dropout is not None:
@@ -81,7 +83,7 @@ class BasicBlock(nn.Module):
             identity = self.downsample(x)
         
         out += identity
-        out = F.relu(out, inplace=True)
+        out = self.relu2(out)
         
         return out
 

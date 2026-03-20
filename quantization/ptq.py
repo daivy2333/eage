@@ -8,10 +8,29 @@ from typing import Optional, Dict, Any, Tuple, List, Callable
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from configs import get_config
+
+
+class QuantWrapper(nn.Module):
+    """
+    量化包装器
+    为模型添加 QuantStub 和 DeQuantStub
+    """
+    def __init__(self, model: nn.Module):
+        super(QuantWrapper, self).__init__()
+        self.quant = torch.quantization.QuantStub()
+        self.model = model
+        self.dequant = torch.quantization.DeQuantStub()
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.quant(x)
+        x = self.model(x)
+        x = self.dequant(x)
+        return x
 
 
 class QuantizationConfig:
@@ -70,11 +89,15 @@ class PostTrainingQuantizer:
         model = copy.deepcopy(self.model)
         model.eval()
         
-        # 设置量化配置
-        model.qconfig = self.qconfig
-        
         # 融合模块 (Conv + BN + ReLU)
         model = self._fuse_modules(model)
+        
+        # 使用 QuantWrapper 包装模型
+        # 这会添加 QuantStub 和 DeQuantStub 来处理输入/输出的量化/反量化
+        model = QuantWrapper(model)
+        
+        # 设置量化配置
+        model.qconfig = self.qconfig
         
         # 准备量化
         torch.quantization.prepare(model, inplace=True)
@@ -84,6 +107,7 @@ class PostTrainingQuantizer:
     def _fuse_modules(self, model: nn.Module) -> nn.Module:
         """
         融合模块 (Conv + BN + ReLU)
+        针对 ResNet 结构进行优化，处理非 Sequential 的层结构
         
         Args:
             model: 模型
@@ -91,12 +115,33 @@ class PostTrainingQuantizer:
         Returns:
             融合后的模型
         """
-        # 获取需要融合的层
         modules_to_fuse = []
         
+        # 1. 检查模型是否有 conv1, bn1, relu 层（ResNet 主模型结构）
+        if hasattr(model, 'conv1') and hasattr(model, 'bn1'):
+            if hasattr(model, 'relu'):
+                # 融合 conv1 + bn1 + relu
+                modules_to_fuse.append(('conv1', 'bn1', 'relu'))
+            else:
+                modules_to_fuse.append(('conv1', 'bn1'))
+        
+        # 2. 遍历所有模块，处理 BasicBlock 中的层
         for name, module in model.named_modules():
+            # 跳过主模型本身
+            if name == '':
+                continue
+            
+            # 检查是否是 BasicBlock 或类似的残差块结构
+            if hasattr(module, 'conv1') and hasattr(module, 'bn1'):
+                # BasicBlock: conv1 + bn1
+                modules_to_fuse.append((f'{name}.conv1', f'{name}.bn1'))
+            
+            if hasattr(module, 'conv2') and hasattr(module, 'bn2'):
+                # BasicBlock: conv2 + bn2
+                modules_to_fuse.append((f'{name}.conv2', f'{name}.bn2'))
+            
+            # 处理 Sequential 结构（保持向后兼容）
             if isinstance(module, nn.Sequential):
-                # 检查是否为 Conv-BN-ReLU 序列
                 if len(module) >= 2:
                     if isinstance(module[0], nn.Conv2d):
                         if isinstance(module[1], nn.BatchNorm2d):
@@ -107,7 +152,11 @@ class PostTrainingQuantizer:
         
         # 融合模块
         if modules_to_fuse:
-            model = torch.quantization.fuse_modules(model, modules_to_fuse)
+            try:
+                model = torch.quantization.fuse_modules(model, modules_to_fuse)
+                print(f"Fused modules: {modules_to_fuse}")
+            except Exception as e:
+                print(f"Warning: Failed to fuse some modules: {e}")
         
         return model
     
@@ -274,10 +323,42 @@ class QuantizationAwareTrainer:
         return model
     
     def _fuse_modules(self, model: nn.Module) -> nn.Module:
-        """融合模块"""
+        """
+        融合模块 (Conv + BN + ReLU)
+        针对 ResNet 结构进行优化，处理非 Sequential 的层结构
+        
+        Args:
+            model: 模型
+        
+        Returns:
+            融合后的模型
+        """
         modules_to_fuse = []
         
+        # 1. 检查模型是否有 conv1, bn1, relu 层（ResNet 主模型结构）
+        if hasattr(model, 'conv1') and hasattr(model, 'bn1'):
+            if hasattr(model, 'relu'):
+                # 融合 conv1 + bn1 + relu
+                modules_to_fuse.append(('conv1', 'bn1', 'relu'))
+            else:
+                modules_to_fuse.append(('conv1', 'bn1'))
+        
+        # 2. 遍历所有模块，处理 BasicBlock 中的层
         for name, module in model.named_modules():
+            # 跳过主模型本身
+            if name == '':
+                continue
+            
+            # 检查是否是 BasicBlock 或类似的残差块结构
+            if hasattr(module, 'conv1') and hasattr(module, 'bn1'):
+                # BasicBlock: conv1 + bn1
+                modules_to_fuse.append((f'{name}.conv1', f'{name}.bn1'))
+            
+            if hasattr(module, 'conv2') and hasattr(module, 'bn2'):
+                # BasicBlock: conv2 + bn2
+                modules_to_fuse.append((f'{name}.conv2', f'{name}.bn2'))
+            
+            # 处理 Sequential 结构（保持向后兼容）
             if isinstance(module, nn.Sequential):
                 if len(module) >= 2:
                     if isinstance(module[0], nn.Conv2d):
@@ -287,8 +368,13 @@ class QuantizationAwareTrainer:
                             else:
                                 modules_to_fuse.append((f'{name}.0', f'{name}.1'))
         
+        # 融合模块
         if modules_to_fuse:
-            model = torch.quantization.fuse_modules(model, modules_to_fuse)
+            try:
+                model = torch.quantization.fuse_modules(model, modules_to_fuse)
+                print(f"Fused modules: {modules_to_fuse}")
+            except Exception as e:
+                print(f"Warning: Failed to fuse some modules: {e}")
         
         return model
     

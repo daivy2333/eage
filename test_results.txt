@@ -1,0 +1,101 @@
+============================================================
+Model Test Results
+============================================================
+Test image: test.jpg
+Time: 2026-03-20 17:02:26
+
+------------------------------------------------------------
+Model: Best Model (Original)
+Path: weights/best_model.pth
+Status: SUCCESS
+Device: cuda
+Total params: 11,173,962
+Model size: 42.66 MB
+Predicted class: airplane (ID: 0)
+Confidence: 0.9064
+Inference time: 1.51 ms
+Top-5 predictions:
+  1. airplane: 0.9064
+  2. bird: 0.0110
+  3. truck: 0.0109
+  4. ship: 0.0107
+  5. horse: 0.0105
+
+------------------------------------------------------------
+Model: Pruned Model
+Path: weights/pruned_model.pth
+Status: SUCCESS
+Device: cuda
+Total params: 11,173,962
+Model size: 42.66 MB
+Predicted class: airplane (ID: 0)
+Confidence: 0.9064
+Inference time: 1.67 ms
+Top-5 predictions:
+  1. airplane: 0.9064
+  2. bird: 0.0110
+  3. truck: 0.0109
+  4. ship: 0.0107
+  5. horse: 0.0105
+
+------------------------------------------------------------
+Model: Distilled Model
+Path: weights/distilled_model.pth
+Status: SUCCESS
+Device: cuda
+Total params: 11,173,962
+Model size: 42.66 MB
+Predicted class: airplane (ID: 0)
+Confidence: 0.9198
+Inference time: 1.60 ms
+Top-5 predictions:
+  1. airplane: 0.9198
+  2. dog: 0.0092
+  3. truck: 0.0092
+  4. horse: 0.0091
+  5. bird: 0.0089
+
+------------------------------------------------------------
+Model: Quantized Model (Dynamic)
+Path: weights/quantized_model_dynamic.pth
+Status: SUCCESS
+Device: cpu
+Total params: 11,168,832
+Model size: 42.64 MB
+Predicted class: airplane (ID: 0)
+Confidence: 0.9066
+Inference time: 12.99 ms
+Top-5 predictions:
+  1. airplane: 0.9066
+  2. bird: 0.0109
+  3. truck: 0.0109
+  4. ship: 0.0107
+  5. horse: 0.0105
+
+------------------------------------------------------------
+Model: ONNX Model
+Path: onnx_models/resnet18.onnx
+Status: SUCCESS
+Device: CPUExecutionProvider
+Total params: N/A
+Model size: 0.08 MB
+Predicted class: airplane (ID: 0)
+Confidence: 0.9064
+Inference time: 4.12 ms
+Top-5 predictions:
+  1. airplane: 0.9064
+  2. bird: 0.0110
+  3. truck: 0.0109
+  4. ship: 0.0107
+  5. horse: 0.0105
+
+============================================================
+Summary
+============================================================
+Model                     Status     Predicted       Conf     Time(ms)   Size(MB)  
+--------------------------------------------------------------------------------
+Best Model (Original)     SUCCESS    airplane        0.9064   1.51       42.66     
+Pruned Model              SUCCESS    airplane        0.9064   1.67       42.66     
+Distilled Model           SUCCESS    airplane        0.9198   1.60       42.66     
+Quantized Model (Dynamic) SUCCESS    airplane        0.9066   12.99      42.64     
+ONNX Model                SUCCESS    airplane        0.9064   4.12       0.08      
